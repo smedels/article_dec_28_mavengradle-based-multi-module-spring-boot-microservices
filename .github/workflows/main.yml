@@ -1,1 +1,76 @@
 name: Pipeline Sandra Medel
+on:
+  push:
+jobs:
+  build:
+    name: Construir y analizar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 
+          
+      - name: Setear JDK 11
+        uses: actions/setup-java@v3.12.0
+        with:
+          java-version: '11'
+          distribution: 'zulu' 
+          
+      - name: Build 
+        run: |
+          chmod +x gradlew
+          ./gradlew clean build bootBuildImage
+
+      - name: Prueba de dir
+        run: |
+            ls -lt 
+            ls -lt $GITHUB_WORKSPACE/
+
+      - name: Verificando creacion compilado JAR
+        run: |
+            ls -lt 
+            ls -lt $GITHUB_WORKSPACE/build
+            ls -lt $GITHUB_WORKSPACE/service-a/build/libs
+            ls -lt $GITHUB_WORKSPACE/service-b/build/libs
+            ls -lt $GITHUB_WORKSPACE/service-c/build/libs
+
+      - name: Cargando JAR's
+        run: |
+          java -jar $GITHUB_WORKSPACE/service-a/build/libs/service-a-0.0.1-SNAPSHOT.jar &
+          java -jar $GITHUB_WORKSPACE/service-b/build/libs/service-b-0.0.1-SNAPSHOT.jar &
+          java -jar $GITHUB_WORKSPACE/service-c/build/libs/service-c-0.0.1-SNAPSHOT.jar &
+
+      - name: Tiempo de espera para asegurarse que levante el servidor
+        uses: jakejarvis/wait-action@v0.1.1
+        with:
+          time: 15s
+
+      - name: Prueba de JAR's compilados
+        run: |
+          curl 127.0.0.1:8081/greeting || true
+          curl 127.0.0.1:8082/greeting || true
+          curl 127.0.0.1:8083/greeting || true
+
+      - name: Apache JMeter
+        uses: rbhadti94/apache-jmeter-action@v0.7.0
+        with:
+          testFilePath: 'tarea.jmx'
+          outputReportsFolder: 'jmreport'
+
+      - uses: actions/upload-artifact@v1
+        with:
+          name: jmeter-test-results
+          path: jmreport/
+          
+      - name: Postman
+        uses: matt-ball/newman-action@master
+        with:
+          collection: Demo-My.postman_collection.json
+          reporters: '["json"]'
+
+      - uses: actions/upload-artifact@v1
+        with:
+          name: postman-test-results
+          path: newman/
+
+
